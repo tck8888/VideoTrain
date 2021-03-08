@@ -3,6 +3,8 @@ package com.tck.av.common
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.text.TextUtils
+import java.io.ByteArrayOutputStream
+import java.io.File
 
 /**
  *<p>description:</p>
@@ -18,10 +20,27 @@ object MediaExtractorUtils {
         return findMediaFormatByMime(mediaExtractor, MediaFormat.MIMETYPE_AUDIO_AAC)
     }
 
-    fun findVideoFormat(mediaExtractor: MediaExtractor): Int {
-        return findMediaFormatByMime(mediaExtractor, MediaFormat.MIMETYPE_VIDEO_AVC)
+    fun getVideoFormatInfo(srcFile: File): MediaFormat? {
+        if (!srcFile.exists()) {
+            return null
+        }
+
+        if (srcFile.length() == 0L) {
+            return null
+        }
+        try {
+            val mediaExtractor = MediaExtractor()
+            mediaExtractor.setDataSource(srcFile.absolutePath)
+            val findVideoFormatTrackIndex = findVideoFormatTrackIndex(mediaExtractor)
+            return mediaExtractor.getTrackFormat(findVideoFormatTrackIndex)
+        } catch (e: Exception) {
+        }
+        return null
     }
 
+    fun findVideoFormatTrackIndex(mediaExtractor: MediaExtractor): Int {
+        return findMediaFormatByMime(mediaExtractor, MediaFormat.MIMETYPE_VIDEO_AVC)
+    }
 
     private fun findMediaFormatByMime(
         mediaExtractor: MediaExtractor,
@@ -47,7 +66,7 @@ object MediaExtractorUtils {
         return if (max_input_size == 0) {
             4 * 1024
         } else {
-            max_input_size.coerceAtLeast(4 * 1024)
+            max_input_size.coerceAtLeast(1024 * 1024)
         }
     }
 

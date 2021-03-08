@@ -2,89 +2,90 @@ package com.tck.av.video.extractor
 
 import androidx.core.graphics.toColorInt
 import android.graphics.Typeface
-import android.media.MediaCodec
 import android.media.MediaExtractor
-import android.media.MediaMuxer
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import com.tck.av.common.FileUtils
-import com.tck.av.common.MediaExtractorUtils
-import com.tck.av.common.TLog
-import com.tck.av.common.dp2px
+import com.tck.av.common.*
 import com.tck.av.video.extractor.databinding.ActivityVideoExtractorHomeBinding
+import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
 
 class VideoExtractorHomeActivity : AppCompatActivity() {
 
+    companion object {
+        const val EXTRACTOR_DIR = "extractor"
+    }
+
     private lateinit var binding: ActivityVideoExtractorHomeBinding
+
+    private lateinit var cacheFile: File
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityVideoExtractorHomeBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        FileUtils.deleteCacheDirFile(FileUtils.createCacheDir(this, EXTRACTOR_DIR))
+        cacheFile = FileUtils.createCacheFile(this, EXTRACTOR_DIR, "src.mp4")
+        FileUtils.copyAssetsFileToCache(this, "WeChat_20210304214737.mp4", cacheFile)
 
         binding.btnVideoExtractor.setOnClickListener {
-            extractor()
+            showVideoInfo()
+        }
+
+        binding.btnExtractorH264.setOnClickListener {
+            extractorH264()
         }
     }
 
-    private fun extractor() {
-        val openNonAssetFd = try {
-            assets.openFd("WeChat_20210304214737.mp4")
-        } catch (e: Exception) {
-            null
-        }
-        if (openNonAssetFd == null) {
-            Toast.makeText(this, "打开不了视频文件", Toast.LENGTH_SHORT).show()
-            return
-        }
-        val mediaExtractor = MediaExtractor()
-        mediaExtractor.setDataSource(openNonAssetFd)
-
-        val videoTrackIndex = MediaExtractorUtils.findVideoFormat(mediaExtractor)
-        if (videoTrackIndex == -1) {
-            Toast.makeText(this, "找不到视频", Toast.LENGTH_SHORT).show()
-            return
-        }
-        val videoFormat = mediaExtractor.getTrackFormat(videoTrackIndex)
-
-        setVideoInfoView(videoFormat.toString())
-
-        val mediaFormatMaxInputSize = MediaExtractorUtils.getMediaFormatMaxInputSize(videoFormat)
-        mediaExtractor.selectTrack(videoTrackIndex)
-        val inputBuffer = ByteBuffer.allocate(mediaFormatMaxInputSize)
-
-        //https://www.jianshu.com/p/a22b5305a3e2?utm_campaign=haruki&utm_content=note&utm_medium=seo_notes&utm_source=recommendation
-        FileOutputStream(
-            FileUtils.getCacheFile(
-                this,
-                "extractor",
-                "video_${System.currentTimeMillis()}.h264"
-            )
-        ).use { fileOutputStream ->
-            while (true) {
-                val readSampleCount = mediaExtractor.readSampleData(inputBuffer, 0)
-                TLog.i("readSampleCount:${readSampleCount}")
-                if (readSampleCount < 0) {
-                    break
+    private fun extractorH264() {
+        val createCacheFile = FileUtils.createCacheFile(
+            this,
+            EXTRACTOR_DIR,
+            "video_${System.currentTimeMillis()}.h264"
+        )
+        val extractorH264Task = ExtractorH264Task(
+            createCacheFile,
+            object : TaskExecuteCallback {
+                override fun onStart() {
+                    binding.btnExtractorH264.isEnabled = false
+                    binding.llExtractorH264Container.visibility = View.GONE
                 }
-                val buffer = ByteArray(readSampleCount)
-                inputBuffer.get(buffer)
-                fileOutputStream.write(buffer)
 
+                override fun onSuccess() {
+                    binding.btnExtractorH264.isEnabled = true
+                    binding.llExtractorH264Container.visibility = View.VISIBLE
+                    binding.tvExtractorH264Result.text = createCacheFile.absolutePath
+                }
 
-                inputBuffer.clear()
-                mediaExtractor.advance()
-
-
+                override fun onError() {
+                    binding.btnExtractorH264.isEnabled = true
+                    binding.llExtractorH264Container.visibility = View.GONE
+                }
             }
+        )
+        val initMediaExtractor = extractorH264Task.initMediaExtractor(cacheFile)
+        if (!initMediaExtractor) {
+            return
         }
 
-        mediaExtractor.release()
+        TaskExecutor.instances.executeOnDiskIO(extractorH264Task)
+    }
+
+    private fun showVideoInfo() {
+        val videoFormatInfo = MediaExtractorUtils.getVideoFormatInfo(cacheFile)
+        if (videoFormatInfo != null) {
+            setVideoInfoView(videoFormatInfo.toString())
+        } else {
+            binding.llAudioInfo.removeAllViews()
+            binding.llAudioInfo.addView(createKeyValueInfoWidget("error", "视频解析错误"))
+            binding.llAudioInfo.setBackgroundResource(R.drawable.shape_corners_4dp_stroke_fff0f0f0_solid_1ad8d8d8)
+        }
     }
 
 

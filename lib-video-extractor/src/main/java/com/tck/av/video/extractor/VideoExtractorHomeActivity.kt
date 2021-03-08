@@ -2,15 +2,21 @@ package com.tck.av.video.extractor
 
 import androidx.core.graphics.toColorInt
 import android.graphics.Typeface
+import android.media.MediaCodec
 import android.media.MediaExtractor
+import android.media.MediaMuxer
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import com.tck.av.common.FileUtils
 import com.tck.av.common.MediaExtractorUtils
+import com.tck.av.common.TLog
 import com.tck.av.common.dp2px
 import com.tck.av.video.extractor.databinding.ActivityVideoExtractorHomeBinding
+import java.io.FileOutputStream
+import java.nio.ByteBuffer
 
 class VideoExtractorHomeActivity : AppCompatActivity() {
 
@@ -47,6 +53,38 @@ class VideoExtractorHomeActivity : AppCompatActivity() {
         val videoFormat = mediaExtractor.getTrackFormat(videoTrackIndex)
 
         setVideoInfoView(videoFormat.toString())
+
+        val mediaFormatMaxInputSize = MediaExtractorUtils.getMediaFormatMaxInputSize(videoFormat)
+        mediaExtractor.selectTrack(videoTrackIndex)
+        val inputBuffer = ByteBuffer.allocate(mediaFormatMaxInputSize)
+
+        //https://www.jianshu.com/p/a22b5305a3e2?utm_campaign=haruki&utm_content=note&utm_medium=seo_notes&utm_source=recommendation
+        FileOutputStream(
+            FileUtils.getCacheFile(
+                this,
+                "extractor",
+                "video_${System.currentTimeMillis()}.h264"
+            )
+        ).use { fileOutputStream ->
+            while (true) {
+                val readSampleCount = mediaExtractor.readSampleData(inputBuffer, 0)
+                TLog.i("readSampleCount:${readSampleCount}")
+                if (readSampleCount < 0) {
+                    break
+                }
+                val buffer = ByteArray(readSampleCount)
+                inputBuffer.get(buffer)
+                fileOutputStream.write(buffer)
+
+
+                inputBuffer.clear()
+                mediaExtractor.advance()
+
+
+            }
+        }
+
+        mediaExtractor.release()
     }
 
 

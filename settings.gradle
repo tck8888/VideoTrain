@@ -1,5 +1,6 @@
+include ':lib_rtmp_service'
 include ':lib-video-extractor'
 include ':lib-common'
-//include ':lib-soft-codec'
+include ':lib-soft-codec'
 include ':app'
 rootProject.name = "video_train"

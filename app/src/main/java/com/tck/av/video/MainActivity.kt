@@ -14,6 +14,7 @@ class MainActivity : AppCompatActivity() {
 
     private val map = ArrayMap<String, String>().apply {
         put("com.tck.av.video.extractor", "com.tck.av.video.extractor.VideoExtractorHomeActivity")
+        put("com.tck.av.video.rtmp", "com.tck.av.video.rtmp.ScreenLiveActivity")
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -25,6 +26,10 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnVideoExtractor.setOnClickListener {
             jump(map.getOrDefault("com.tck.av.video.extractor", ""))
+        }
+
+        binding.btnVideoLive.setOnClickListener {
+            jump(map.getOrDefault("com.tck.av.video.rtmp", ""))
         }
     }
 

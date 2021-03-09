@@ -2,18 +2,14 @@ package com.tck.av.video.extractor
 
 import androidx.core.graphics.toColorInt
 import android.graphics.Typeface
-import android.media.MediaExtractor
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 import com.tck.av.common.*
 import com.tck.av.video.extractor.databinding.ActivityVideoExtractorHomeBinding
 import java.io.File
-import java.io.FileOutputStream
-import java.nio.ByteBuffer
 
 class VideoExtractorHomeActivity : AppCompatActivity() {
 
@@ -41,6 +37,40 @@ class VideoExtractorHomeActivity : AppCompatActivity() {
         binding.btnExtractorH264.setOnClickListener {
             extractorH264()
         }
+
+        binding.btnExtractorH264ToMp4.setOnClickListener {
+            extractorH264ToMp4()
+        }
+    }
+
+    private fun extractorH264ToMp4() {
+        val createCacheFile = FileUtils.createCacheFile(
+            this,
+            EXTRACTOR_DIR,
+            "video_${System.currentTimeMillis()}.mp4"
+        )
+
+        val h264ToMp4Task =
+            H264ToMp4Task(createCacheFile, TaskExecuteCallbackWrapper(object : TaskExecuteCallback {
+                override fun onStart() {
+                    binding.btnExtractorH264ToMp4.isEnabled = false
+                }
+
+                override fun onSuccess() {
+                    binding.btnExtractorH264ToMp4.isEnabled = true
+                }
+
+                override fun onError(msg: String, code: Int) {
+                    TLog.e(msg)
+                    binding.btnExtractorH264ToMp4.isEnabled = true
+                    binding.tvExtractorH264ToMp4Result.text = createCacheFile.absolutePath
+                }
+            }))
+        val createMediaExtractor = h264ToMp4Task.createMediaExtractor(cacheFile)
+        if (!createMediaExtractor) {
+            return
+        }
+        TaskExecutor.instances.executeOnDiskIO(h264ToMp4Task)
     }
 
     private fun extractorH264() {
@@ -63,10 +93,11 @@ class VideoExtractorHomeActivity : AppCompatActivity() {
                     binding.tvExtractorH264Result.text = createCacheFile.absolutePath
                 }
 
-                override fun onError() {
+                override fun onError(msg: String, code: Int) {
                     binding.btnExtractorH264.isEnabled = true
                     binding.llExtractorH264Container.visibility = View.GONE
                 }
+
             }
         )
         val initMediaExtractor = extractorH264Task.initMediaExtractor(cacheFile)

@@ -1,4 +1,4 @@
-package com.tck.av.video.extractor
+package com.tck.av.common
 
 /**
  *
@@ -15,5 +15,5 @@ interface TaskExecuteCallback {
 
     fun onStart()
     fun onSuccess()
-    fun onError()
+    fun onError(msg:String,code:Int=-1)
 }

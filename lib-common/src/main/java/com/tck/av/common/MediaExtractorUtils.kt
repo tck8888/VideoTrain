@@ -62,11 +62,11 @@ object MediaExtractorUtils {
     }
 
     fun getMediaFormatMaxInputSize(mediaFormat: MediaFormat): Int {
-        var max_input_size = mediaFormat.getInteger(MediaFormat.KEY_MAX_INPUT_SIZE)
+        val max_input_size = mediaFormat.getInteger(MediaFormat.KEY_MAX_INPUT_SIZE)
         return if (max_input_size == 0) {
-            4 * 1024
+            1024 * 1024
         } else {
-            max_input_size.coerceAtLeast(1024 * 1024)
+            max_input_size
         }
     }
 

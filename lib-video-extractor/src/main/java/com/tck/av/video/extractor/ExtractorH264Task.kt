@@ -2,9 +2,9 @@ package com.tck.av.video.extractor
 
 import android.media.MediaExtractor
 import android.media.MediaFormat
-import android.widget.Toast
 import com.tck.av.common.MediaExtractorUtils
 import com.tck.av.common.TLog
+import com.tck.av.common.TaskExecuteCallback
 import com.tck.av.common.TaskExecutor
 import java.io.File
 import java.io.FileOutputStream
@@ -32,7 +32,7 @@ class ExtractorH264Task(private val cacheFile: File, var callback: TaskExecuteCa
             videoTrackIndex =
                 MediaExtractorUtils.findVideoFormatTrackIndex(mediaExtractorTemp)
             if (videoTrackIndex == -1) {
-                callback?.onError()
+                callback?.onError("")
                 return false
             }
             val videoFormatTemp = mediaExtractorTemp.getTrackFormat(videoTrackIndex)
@@ -43,7 +43,7 @@ class ExtractorH264Task(private val cacheFile: File, var callback: TaskExecuteCa
             return true
         } catch (e: Exception) {
             TLog.i("ExtractorH264Task initMediaExtractor error:${e.message}")
-            callback?.onError()
+            callback?.onError("")
         }
         return false
     }
@@ -82,7 +82,7 @@ class ExtractorH264Task(private val cacheFile: File, var callback: TaskExecuteCa
             TLog.i("ExtractorH264Task run error:${e.message}")
             callback?.let {
                 TaskExecutor.instances.postToMainThread {
-                    it.onError()
+                    it.onError("")
                 }
             }
         }

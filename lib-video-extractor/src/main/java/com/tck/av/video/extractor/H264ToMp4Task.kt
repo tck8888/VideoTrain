@@ -1,4 +1,4 @@
-package com.tck.av.video.extractor
+  package com.tck.av.video.extractor
 
 import android.media.MediaCodec
 import android.media.MediaExtractor

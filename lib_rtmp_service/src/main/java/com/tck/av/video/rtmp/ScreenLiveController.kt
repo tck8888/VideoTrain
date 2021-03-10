@@ -1,6 +1,9 @@
 package com.tck.av.video.rtmp
 
+import android.media.projection.MediaProjection
 import com.tck.av.common.TLog
+import com.tck.av.common.TaskExecutor
+import java.util.concurrent.LinkedBlockingQueue
 
 /**
  *<p>description:</p>
@@ -9,13 +12,23 @@ import com.tck.av.common.TLog
  * @version v1.0
  *
  */
-class ScreenLiveController(private val url: String) : Thread() {
-
+class ScreenLiveController(private val url: String,  var mediaProjection: MediaProjection?) :
+    Thread() {
 
     init {
         System.loadLibrary("myrtmp")
     }
 
+    private val queue: LinkedBlockingQueue<RTMPPackage> = LinkedBlockingQueue()
+
+    private var isLiving = false
+
+    fun addPackage(rtmpPackage: RTMPPackage?) {
+        if (!isLiving) {
+            return
+        }
+        queue.add(rtmpPackage)
+    }
 
     override fun run() {
         super.run()
@@ -23,6 +36,23 @@ class ScreenLiveController(private val url: String) : Thread() {
         if (!connect(url)) {
             TLog.i("connect error")
             return
+        }
+        val videoCodecTask = VideoCodecTask(this)
+        videoCodecTask.startLive()
+        TaskExecutor.instances.executeOnDiskIO(videoCodecTask)
+        
+        isLiving = true
+        while (isLiving) {
+            val rtmpPackage = try {
+                queue.take()
+            } catch (e: Exception) {
+                TLog.e("get RTMPPackage error:${e.message}")
+                null
+            }
+            if (rtmpPackage != null && rtmpPackage.buffer.isNotEmpty()) {
+                TLog.i("run:推送：${rtmpPackage.buffer.size}")
+                sendData(rtmpPackage.buffer, rtmpPackage.buffer.size, rtmpPackage.tms)
+            }
         }
     }
 

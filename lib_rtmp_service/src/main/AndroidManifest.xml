@@ -2,8 +2,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.tck.av.video.rtmp">
 
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+
     <application>
-        <activity android:name=".ScreenLiveActivity"></activity>
+        <activity
+            android:name=".ScreenLiveActivity"
+            android:screenOrientation="portrait" />
+        <service
+            android:name=".ScreenLiveService"
+            android:enabled="true"
+            android:foregroundServiceType="mediaProjection" />
     </application>
 
 </manifest>

@@ -1,6 +1,7 @@
 package com.tck.av.video.rtmp
 
 import android.app.Activity
+import android.app.Service
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -25,6 +26,8 @@ class ScreenLiveActivity : AppCompatActivity() {
             //ScreenLiveController("rtmp://58.200.131.2:1935/livetv/hunantv").start()
             startLive()
         }
+
+
     }
 
     private fun startLive() {
@@ -32,39 +35,31 @@ class ScreenLiveActivity : AppCompatActivity() {
             getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         val createScreenCaptureIntent = mediaProjectionManager.createScreenCaptureIntent()
         startActivityForResult(createScreenCaptureIntent, 100)
+
+        val intent = Intent(this, ScreenLiveService::class.java)
+        bindService(intent,serviceConnection, Service.BIND_AUTO_CREATE)
     }
 
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == 100 && resultCode == Activity.RESULT_OK && data != null) {
-            realStartScreenLive(resultCode, data)
+            screenLiveService?.createVirtualDisplay(resultCode, data)
         }
     }
 
-    private fun realStartScreenLive(resultCode: Int, data: Intent) {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            val intent = Intent(this, ScreenLiveService::class.java)
-            intent.putExtra("resultCode", resultCode)
-            intent.putExtra("data", data)
-            startForegroundService(intent)
-        } else {
-            val mediaProjection = getMediaProjectionManager().getMediaProjection(resultCode, data)
-            ScreenLiveController("rtmp://172.20.7.219:1935/myapp",mediaProjection).start()
-        }
-    }
 
-    private fun getMediaProjectionManager(): MediaProjectionManager {
-        return getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-    }
+
+    private var screenLiveService: ScreenLiveService? = null
 
     private val serviceConnection: ServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            TODO("Not yet implemented")
+            screenLiveService = (service as? ScreenLiveService.ScreenLiveBinder)?.getService()
+           // screenLiveService.setNotificationEngine()
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
-            TODO("Not yet implemented")
+            screenLiveService = null
         }
 
     }

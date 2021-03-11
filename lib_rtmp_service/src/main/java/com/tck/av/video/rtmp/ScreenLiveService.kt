@@ -3,6 +3,7 @@ package com.tck.av.video.rtmp
 import android.app.*
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
 import android.media.projection.MediaProjectionManager
 import android.os.Binder
 import android.os.IBinder
@@ -19,38 +20,48 @@ class ScreenLiveService : Service() {
 
     val channelId = "123"
 
-    override fun onBind(intent: Intent?): IBinder? {
-        return null
+
+    inner class ScreenLiveBinder : Binder() {
+        fun getService(): ScreenLiveService = this@ScreenLiveService
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent != null) {
-            val resultData = intent.getParcelableExtra<Intent>("data")
-            val resultCode = intent.getIntExtra("resultCode", Activity.RESULT_OK)
-            if (resultData !== null && resultCode == Activity.RESULT_OK) {
-                createNotificationChannel()
-                val mediaProjection =
-                    getMediaProjectionManager().getMediaProjection(resultCode, resultData)
-                ScreenLiveController("rtmp://172.20.7.219:1935/myapp",mediaProjection).start()
-            }else{
-                stopSelf()
-            }
-        }
-        return super.onStartCommand(intent, flags, startId)
-
+    override fun onBind(intent: Intent?): IBinder {
+        return ScreenLiveBinder()
     }
 
     private fun createNotificationChannel() {
 
+        NotificationHelper.instances
+            .createSystem(this)
+            .setOngoing(true)
+            .setTicker("录频直播")
+            .setContentText("录频直播")
+            .setDefaults(Notification.DEFAULT_ALL)
+            .build()
+
         val intent = Intent(this, ScreenLiveActivity::class.java)
-        intent.addFlags(Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT)
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
         val pendingIntent =
-            PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                PendingIntent.getForegroundService(
+                    this,
+                    0,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT
+                )
+            } else {
+                PendingIntent.getService(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT)
+            }
 
         val notification =
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                 val notificationChannel =
-                    NotificationChannel("123", "录屏直播", NotificationManager.IMPORTANCE_HIGH)
+                    NotificationChannel(channelId, "录屏直播", NotificationManager.IMPORTANCE_HIGH)
+                notificationChannel.enableVibration(true)
+                notificationChannel.setShowBadge(true)
+                notificationChannel.enableLights(true)
+                notificationChannel.lightColor = Color.parseColor("#e8334a")
+                notificationChannel.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
                 val notificationManager =
                     getSystemService(NOTIFICATION_SERVICE) as NotificationManager
                 notificationManager.createNotificationChannel(notificationChannel)
@@ -59,6 +70,7 @@ class ScreenLiveService : Service() {
                     .setContentTitle("录屏直播")
                     .setContentText("正在录屏...")
                     .setAutoCancel(false)
+                    .setContentIntent(pendingIntent)
                     .setOngoing(true)
                     .build()
             } else {
@@ -67,10 +79,11 @@ class ScreenLiveService : Service() {
                     .setContentText("正在录屏...")
                     .setAutoCancel(false)
                     .setOngoing(true)
+                    .setContentIntent(pendingIntent)
                     .build()
             }
 
-        startForeground(10000,notification)
+        startForeground(10000, notification)
     }
 
     private fun getMediaProjectionManager(): MediaProjectionManager {
@@ -81,5 +94,18 @@ class ScreenLiveService : Service() {
         stopForeground(true)
         super.onDestroy()
     }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        stopSelf()
+    }
+
+    fun createVirtualDisplay(resultCode: Int, resultData: Intent) {
+        createNotificationChannel()
+        val mediaProjection =
+            getMediaProjectionManager().getMediaProjection(resultCode, resultData)
+        ScreenLiveController("rtmp://172.20.7.219:1935/myapp", mediaProjection).start()
+    }
+
 
 }

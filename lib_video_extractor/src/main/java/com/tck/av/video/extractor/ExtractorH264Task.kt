@@ -7,6 +7,7 @@ import android.media.MediaFormat
 import com.tck.av.common.*
 import java.io.File
 import java.io.FileOutputStream
+import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 
 /**
@@ -42,17 +43,10 @@ class ExtractorH264Task(
                 MediaExtractorUtils.getMediaFormatMaxInputSize(videoFormatTemp)
             mediaExtractor = mediaExtractorTemp
 
-            val createVideoFormat =
-                MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, 720, 1280)
-            createVideoFormat.setInteger(
-                MediaFormat.KEY_COLOR_FORMAT,
-                MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface
+            mediaCodec = MediaCodec.createDecoderByType(
+                videoFormatTemp.getString(MediaFormat.KEY_MIME) ?: MediaFormat.MIMETYPE_VIDEO_AVC
             )
-            createVideoFormat.setInteger(MediaFormat.KEY_BIT_RATE, 400000)
-            createVideoFormat.setInteger(MediaFormat.KEY_FRAME_RATE, 15)
-            createVideoFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2)
-            mediaCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
-            mediaCodec?.configure(createVideoFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+            mediaCodec?.configure(videoFormatTemp, null, null, 0)
             return true
         } catch (e: Exception) {
             callback?.onError("ExtractorH264Task initMediaExtractor error:${e.message}")
@@ -61,36 +55,100 @@ class ExtractorH264Task(
     }
 
     override fun run() {
+        val mediaCodecTemp = mediaCodec
         val mediaExtractorTemp = mediaExtractor
-        if (mediaExtractorTemp == null|| videoTrackIndex == -1 || mediaFormatMaxInputSize == 0) {
-            callback?.onError("mediaExtractorTemp==null || videoTrackIndex == -1 || mediaFormatMaxInputSize == 0")
+        if (mediaCodecTemp == null || mediaExtractorTemp == null || videoTrackIndex == -1 || mediaFormatMaxInputSize == 0) {
+            callback?.onError("mediaCodecTemp == null || mediaExtractorTemp==null || videoTrackIndex == -1 || mediaFormatMaxInputSize == 0")
             return
         }
 
         callback?.onStart()
         mediaExtractorTemp.selectTrack(videoTrackIndex)
         val buffer = ByteBuffer.allocate(mediaFormatMaxInputSize)
+        val bufferInfo = MediaCodec.BufferInfo()
 
+        mediaCodecTemp.start()
+
+        val videoFormatTemp = mediaExtractorTemp.getTrackFormat(videoTrackIndex)
+
+        //pps
+        //00 00 00 01 67 64 00 1F AC D9 40 DC 11 68 40 00 00 03 00 40 00 00 0F 03 C6 0C 65 80
+        val byteBuffer_pps = videoFormatTemp.getByteBuffer("csd-0")
+        val pps = byteBufferToByte(videoFormatTemp.getByteBuffer("csd-0"))
+        //sps
+        //00 00 00 01 68 EF BC B0
+        val byteBuffer_sps = videoFormatTemp.getByteBuffer("csd-1")
+        val sps = byteBufferToByte(videoFormatTemp.getByteBuffer("csd-1"))
+
+        val header = ByteArray(pps.size + sps.size)
+        System.arraycopy(sps, 0, header, 0, sps.size)
+        System.arraycopy(pps, 0, header, sps.size, pps.size)
+
+        //  TLog.i(String(header))
+        mediaExtractorTemp.selectTrack(videoTrackIndex)
+
+        val timeoutUs = 10L
         try {
-            FileOutputStream(cacheFile).channel.use { fileOutputStream ->
+            FileOutputStream(cacheFile).use { fileOutputStream ->
                 while (true) {
-                    val readSampleData = mediaExtractorTemp.readSampleData(buffer, 0)
-                    TLog.i("readSampleData:${readSampleData}")
-                    if (readSampleData < 0) {
-                        break
+                    var inputIndex = mediaCodecTemp.dequeueInputBuffer(timeoutUs)
+                    if (inputIndex >= 0) {
+                        val readSampleData = mediaExtractorTemp.readSampleData(buffer, 0)
+                        TLog.i("readSampleData:${readSampleData}")
+
+                        val content = ByteArray(readSampleData)
+                        buffer.get(content)
+
+                        val inputBuffer = mediaCodecTemp.getInputBuffer(inputIndex)
+                        inputBuffer?.put(content)
+                        mediaCodecTemp.queueInputBuffer(
+                            inputIndex,
+                            0,
+                            readSampleData,
+                            mediaExtractorTemp.sampleTime,
+                            0
+                        )
+
+                        mediaExtractorTemp.advance()
                     }
-                    fileOutputStream.write(buffer)
-                    buffer.clear()
-                    mediaExtractorTemp.advance()
+
+                    var index = mediaCodecTemp.dequeueOutputBuffer(bufferInfo, timeoutUs)
+                    while (index >= 0) {
+                        val outputBuffer = mediaCodecTemp.getOutputBuffer(index)
+                        mediaCodecTemp.releaseOutputBuffer(index, false)
+                        outputBuffer?.let {
+
+                            val out = ByteArray(sps.size + pps.size + it.remaining())
+                            byteBuffer_sps.get(out)
+                            byteBuffer_pps.get(out,sps.size,pps.size)
+                            it.get(out,sps.size+pps.size,it.remaining())
+                            fileOutputStream.write(out)
+                        }
+                        index = mediaCodecTemp.dequeueOutputBuffer(bufferInfo, timeoutUs)
+                    }
                 }
             }
         } catch (e: Exception) {
             callback?.onError("ExtractorH264Task run error:${e.message}")
         }
+
+
         TLog.i("ExtractorH264Task success:${cacheFile.length() / 1024}kb")
         mediaExtractorTemp.release()
         mediaExtractor = null
+        mediaCodecTemp.stop()
+        mediaCodecTemp.release()
+        mediaCodec = null
         callback?.onSuccess()
         callback = null
+    }
+
+    fun byteBufferToByte(buffer: ByteBuffer?): ByteArray {
+        if (buffer == null) {
+            return ByteArray(0)
+        }
+        val byteArray = ByteArray(buffer.remaining())
+        buffer.get(byteArray)
+        return byteArray
     }
 }

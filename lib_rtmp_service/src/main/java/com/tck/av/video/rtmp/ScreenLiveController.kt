@@ -6,6 +6,7 @@ import com.tck.av.common.TaskExecutor
 import java.util.concurrent.LinkedBlockingQueue
 
 /**
+ * https://developer.qiniu.com/pili/kb/6701/push-the-flow-quality-configuration
  *<p>description:</p>
  *<p>created on: 2021/3/9 12:26</p>
  * @author tck

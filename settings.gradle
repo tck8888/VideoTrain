@@ -1,8 +1,14 @@
+if (use_lib_rtmp_service.toBoolean()) {
+    include ':lib_rtmp_service'
+}
 
-include ':lib_rtmp_service'
-include ':lib-video-extractor'
-include ':lib-common'
-include ':lib-soft-codec'
+if (use_lib_soft_codec.toBoolean()) {
+    include ':lib_soft_codec'
+}
+
+include ':lib_video_extractor'
+include ':lib_common'
+
 
 include ':app'
 rootProject.name = "video_train"

@@ -81,7 +81,7 @@ class VideoExtractorHomeActivity : AppCompatActivity() {
         )
         val extractorH264Task = ExtractorH264Task(
             createCacheFile,
-            object : TaskExecuteCallback {
+            TaskExecuteCallbackWrapper(object : TaskExecuteCallback {
                 override fun onStart() {
                     binding.btnExtractorH264.isEnabled = false
                     binding.llExtractorH264Container.visibility = View.GONE
@@ -94,11 +94,11 @@ class VideoExtractorHomeActivity : AppCompatActivity() {
                 }
 
                 override fun onError(msg: String, code: Int) {
+                    TLog.e(msg)
                     binding.btnExtractorH264.isEnabled = true
                     binding.llExtractorH264Container.visibility = View.GONE
                 }
-
-            }
+            })
         )
         val initMediaExtractor = extractorH264Task.initMediaExtractor(cacheFile)
         if (!initMediaExtractor) {
